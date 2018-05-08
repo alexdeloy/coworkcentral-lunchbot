@@ -1,36 +1,25 @@
-from base64 import b64decode
-from urlparse import parse_qs
-import boto3
-import json
-import logging
-import re
-import urllib2
-import random
+from urllib.parse import urlsplit, parse_qs
+from urllib.request import urlopen
 import datetime
+import json
+import random
+import re
 
-expected_token = "YOUR SLACK TOKEN HERE"
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-spreadsheet = "SPREADSHEET ID"
+spreadsheet = "" #spreadsheet id goes here
 locations = []
 
-
 def lambda_handler(event, context):
-    req_body = event["body"]
-    params = parse_qs(req_body)
-    token = params["token"][0]
-    if token != expected_token:
-        logger.error("Request token (%s) does not match expected", token)
-        raise Exception("Invalid request token")
+    body = event["body-json"]
+    params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query) # add a dummy hostname for parsing
 
-    #user = params["user_name"][0]
-    #command = params["command"][0]
-    #channel = params["channel_name"][0]
+    sheet = 1 # defaults to Cais de Sodré
+    if params["channel_name"][0] == "cais-do-sodre":
+        sheet = 1
+    if params["channel_name"][0] == "principe-real":
+        sheet = 2
 
     # get lunch data from google speadsheets
-    parse(spreadsheet)
+    parse(spreadsheet, sheet)
     pick = pickRandomLocation()
 
     slackMessage = {
@@ -50,9 +39,9 @@ def lambda_handler(event, context):
     return slackMessage
 
 
-def parse(url):
-    spreadsheetUrl = "https://spreadsheets.google.com/feeds/list/%s/od6/public/basic?alt=json" % url
-    data = urllib2.urlopen(spreadsheetUrl).read()
+def parse(url, sheet):
+    spreadsheetUrl = "https://spreadsheets.google.com/feeds/list/%s/%s/public/basic?alt=json" % (url, sheet)
+    data = urlopen(spreadsheetUrl).read()
     output = json.loads(data)
     entries = output["feed"]["entry"]
     for entry in entries:
@@ -65,7 +54,7 @@ def parse(url):
 
 
 def pickRandomLocation():
-    isTuesday = True if datetime.datetime.now().weekday() == 1 else False
+    isWedneysay = True if datetime.datetime.now().weekday() == 2 else False
 
     pick = random.choice(locations)
 
@@ -78,8 +67,8 @@ def pickRandomLocation():
         except:
             pass
 
-        # taco-tuesday-bias
-        if isTuesday and "emoji" in location and location["emoji"] == ":taco:":
+        # taco-wednesday-bias
+        if isWedneysay and "emoji" in location and location["emoji"] == ":taco:":
             weight *= 5
 
         total += weight
