@@ -4,15 +4,16 @@ import datetime
 import json
 import random
 import re
+import os
 
-spreadsheet = "" #spreadsheet id goes here
+spreadsheet = os.environ["spreadsheet"]
 locations = []
 
 def lambda_handler(event, context):
     body = event["body-json"]
-    params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query) # add a dummy hostname for parsing
+    params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query)
 
-    sheet = 1 # defaults to Cais de Sodré
+    sheet = 2 # defaults to Cais de Sodré
     if params["channel_name"][0] == "cais-do-sodre":
         sheet = 1
     if params["channel_name"][0] == "principe-real":
@@ -56,8 +57,6 @@ def parse(url, sheet):
 def pickRandomLocation():
     isWedneysay = True if datetime.datetime.now().weekday() == 2 else False
 
-    pick = random.choice(locations)
-
     # select a weighted choice
     total = 0
     for location in locations:
@@ -77,11 +76,13 @@ def pickRandomLocation():
     for k, location in enumerate(locations):
         total -= int(location["weight"])
         if total < treshold:
-            return locations[k]
+            pick = locations[k]
+            break
 
     # fill up to prevent errors
     if "emoji" not in pick:
         pick["emoji"] = ":knife_fork_plate:"
     if "type" not in pick:
         pick["type"] = "no description set"
+
     return pick
