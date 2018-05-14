@@ -11,9 +11,10 @@ locations = []
 
 def lambda_handler(event, context):
     body = event["body-json"]
+    # create a dummy URL for the parser
     params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query)
 
-    sheet = 2 # defaults to Cais de Sodré
+    sheet = 1 # defaults to Cais de Sodré
     if params["channel_name"][0] == "cais-do-sodre":
         sheet = 1
     if params["channel_name"][0] == "principe-real":
