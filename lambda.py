@@ -10,12 +10,17 @@ spreadsheet = os.environ["spreadsheet"]
 locations = []
 
 def lambda_handler(event, context):
-    body = event["body-json"]
-    # create a dummy URL for the parser
-    params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query)
+    if "body-json" in event:
+        body = event["body-json"]
+        params = parse_qs(urlsplit("http://cowork.localhost/?" + body).query)
+    else:
+        venue = event.get("venue", 0)
+        vote = event.get("vote", 0)
+        voteLocation(venue, vote)
+        return
 
     sheet = 1 # defaults to Cais de Sodré
-    if params["channel_name"][0] == "cais-do-sodre":
+    if params["channel_name"][0] == "cais-do-sodré":
         sheet = 1
     if params["channel_name"][0] == "principe-real":
         sheet = 2
@@ -24,19 +29,62 @@ def lambda_handler(event, context):
     parse(spreadsheet, sheet)
     pick = pickRandomLocation()
 
+    emojis = [
+        [":+1:", ":-1:"],
+        [":yum:", ":nauseated_face:"],
+        [":arrow_up:", ":arrow_down:"],
+        [":knife_fork_plate:", ":poop:"]
+    ]
+
+    labels = [
+        ["Yay", "Nay"],
+        ["Yes", "No"],
+        ["Sure!", "Nah.."],
+        ["Recommend", "No"]
+    ]
+
+    emoji = random.choice(emojis)
+    label = random.choice(labels)
+
+    messageText = "%s \n%s" % (pick["emoji"], pick["type"])
+
+    if "address" in pick:
+        messageText += "\n> <%s|%s>" % ("https://www.google.com/maps/place/" + pick["address"], pick["address"])
+
+    if "link" in pick:
+        messageText += "\n> <%s|%s>" % (pick["link"], "Website")
+
     slackMessage = {
         "response_type": "in_channel",
         "channel": "lunch",
         "username": "Lunchy",
         "icon_emoji": pick["emoji"],
-        "text": "What about *%s* today? \n %s \n>%s" % (pick["location"], pick["emoji"], pick["type"])
+        "attachments": [
+            {
+                "color": "#D82C00",
+                "title": "What about *%s* today?" % (pick["location"],),
+                "text": messageText
+            },
+            """
+            {
+                "title": "Would you recommend this ",
+                "callback_id": "lunchrecommend",
+                "actions": [
+                    {
+                        "text": "%s %s" % (emoji[0], label[0]),
+                        "type": "button",
+                        "url": "http://localhost/yes"
+                    },
+                    {
+                        "text": "%s %s" % (emoji[1], label[1]),
+                        "type": "button",
+                        "url": "http://localhost/no"
+                    }
+                ]
+            }
+            """
+        ]
     }
-
-    if "address" in pick:
-        slackMessage["text"] += "\n> <%s|%s>" % ("https://www.google.com/maps/place/" + pick["address"], pick["address"])
-
-    if "link" in pick:
-        slackMessage["text"] += "\n> <%s|%s>" % (pick["link"], "Website")
 
     return slackMessage
 
@@ -54,6 +102,9 @@ def parse(url, sheet):
             content[match[0]] = match[1]
         locations.append(content)
 
+
+def voteLocation(venue, vote):
+    pass
 
 def pickRandomLocation():
     isWedneysay = True if datetime.datetime.now().weekday() == 2 else False
